@@ -1,7 +1,7 @@
 # Shade Intent Node.js SDK
 
-[![npm version](https://img.shields.io/npm/v/shade-intent-sdk.svg)](https://www.npmjs.com/package/shade-intent-sdk)
-[![npm downloads](https://img.shields.io/npm/dm/shade-intent-sdk.svg)](https://www.npmjs.com/package/shade-intent-sdk)
+[![npm version](https://img.shields.io/npm/v/shde-privacy.svg)](https://www.npmjs.com/package/shde-privacy)
+[![npm downloads](https://img.shields.io/npm/dm/shde-privacy.svg)](https://www.npmjs.com/package/shde-privacy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Node.js SDK for private cross-chain transactions with ZK proofs.
@@ -9,15 +9,15 @@ Node.js SDK for private cross-chain transactions with ZK proofs.
 ## Installation
 
 ```bash
-npm install shade-intent-sdk
+npm install shde-privacy
 # or
-yarn add shade-intent-sdk
+yarn add shde-privacy
 
 
 
 Quick Start
 
-const { ZKIntentSDK } = require('shade-intent-sdk');
+const { ZKIntentSDK } = require('shde-privacy');
 
 const sdk = new ZKIntentSDK({
   apiKey: 'your_api_key',
