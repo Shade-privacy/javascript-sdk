@@ -1,40 +1,68 @@
-// test.js
-const ZKIntentSDK = require('./index');
+import { ShadeSDK } from './sdk/index.js';
 
-(async () => {
+async function main() {
   try {
-    // Initialize SDK
-    const sdk = new ZKIntentSDK({
-      apiKey: 'ElepcaGxwmUc1KfgaCB1i1rTrZoaId5G',
-      hmacSecret: '9f36107e82ab2382bdeb3fc655327fb1d732544e3e574c3f53f6ec42d8774de0',
-      baseUrl: 'http://localhost:8000/api', // optional
+    // 1. Initialize SDK with wallet signature
+    const sdk = new ShadeSDK({
+      walletSignature: '0x123456...', // User's wallet signature
+      poseidonUrl: 'http://localhost:3001',
+      merkleUrl: 'http://localhost:3002',
+      proverUrl: 'http://localhost:3003'
     });
-
-    // Example payload
-    const payload = {
-      recipient: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-      amount: 100.67,
-      token: '1',
-      walletType: 'ethereum',
-      walletAddress: '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B',
-    };
-
-    const walletSignature = '0xFakeWalletSignature';
-
-    // Create an intent
-    const intentResponse = await sdk.createIntent({ payload, walletSignature });
-    console.log('Intent Response:', intentResponse);
-
-    // Listen for proof via WebSocket (optional)
-    sdk.listenProof(intentResponse.intentId, (proofData) => {
-      console.log('Proof received:', proofData);
+    
+    await sdk.initialize();
+    
+    // 2. Create a note (deposit)
+    const assetId = 1n; // USDC = 1
+    const amount = 150n; // $150
+    
+    const { commitment, bucketAmount } = await sdk.createNote(assetId, amount);
+    console.log(`📝 Note created!`);
+    console.log(`   Commitment: ${commitment}`);
+    console.log(`   Bucket amount: ${bucketAmount}`);
+    
+    // 3. Get all unspent notes
+    const unspentNotes = await sdk.getUnspentNotes();
+    console.log(`📊 You have ${unspentNotes.length} unspent notes`);
+    
+    // 4. Prepare proof for spending
+    const proofInputs = await sdk.prepareProof(commitment.toString(), {
+      relayerFee: 1n,
+      protocolFee: 0n
     });
-
-    // Or poll for proof status
-    const proofStatus = await sdk.pollProofStatus(intentResponse.intentId);
-    console.log('Proof Status:', proofStatus);
-
-  } catch (err) {
-    console.error('Error:', err.message);
+    
+    console.log(`🔍 Proof inputs prepared:`, proofInputs);
+    
+    // 5. Generate proof (requires prover service)
+    const proof = await sdk.generateProof(proofInputs);
+    
+    // 6. Build execution bundle
+    const bundle = await sdk.buildExecutionBundle(
+      proof,
+      proofInputs.public,
+      {
+        to: '0xContractAddress',
+        data: '0x...',
+        value: 0
+      },
+      {
+        maxFee: 1000000n,
+        expiry: Math.floor(Date.now() / 1000) + 3600,
+        recipient: '0xRecipientAddress'
+      }
+    );
+    
+    console.log(`✅ Execution bundle ready:`, bundle);
+    
+    // 7. Mark note as spent after successful execution
+    await sdk.markNoteSpent(commitment.toString());
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
   }
-})();
+}
+
+// Run if in Node.js
+if (typeof window === 'undefined') {
+  main();
+}
