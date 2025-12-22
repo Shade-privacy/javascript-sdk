@@ -1,218 +1,227 @@
-// index.js
-const axios = require('axios');
-const { encryptPayload } = require('./utils/encrypt');
-const { signPayload } = require('./utils/sign');
-const { connectWebSocket } = require('./utils/websockets');
+import { KeyManager } from './KeyManager.js';
+import { NoteEngine } from './NoteEngine.js';
+import { StorageManager } from './StorageManager.js';
+import { PoseidonClient } from './PoseidonClient.js';
+import { MerkleClient } from './MerkleClient.js';
+import { ProofInputs } from './ProofInputs.js';
+import { ExecutionBundle } from './ExecutionBundle.js';
 
-class ZKIntentSDK {
-  constructor({ apiKey, hmacSecret, baseUrl = 'http://localhost:8000/api' }) {
-    if (!apiKey || !hmacSecret) {
-      throw new Error('apiKey and hmacSecret are required');
-    }
-    this.apiKey = apiKey;
-    this.hmacSecret = hmacSecret;
-    this.baseUrl = baseUrl;
-  }
-
-  /**
-   * Validate amount string for blockchain compatibility
-   * - Must have ≤ 18 digits before decimal point (uint256 max)
-   * - Must be a positive number
-   * @param {string|number} amount - Amount to validate
-   * @returns {string} Validated amount as string
-   * @throws {Error} If amount is invalid
-   */
-  validateAmount(amount) {
-    if (typeof amount !== 'string' && typeof amount !== 'number') {
-      throw new Error('amount must be a string or number');
+export class ShadeSDK {
+  constructor(config) {
+    if (!config.walletSignature) {
+      throw new Error('walletSignature is required for encryption');
     }
     
-    const amountStr = amount.toString().trim();
-    
-    // Remove any commas or spaces
-    const cleanAmount = amountStr.replace(/,/g, '').replace(/\s/g, '');
-    
-    // Check if it's a valid number
-    if (isNaN(parseFloat(cleanAmount))) {
-      throw new Error('amount must be a valid number');
-    }
-    
-    // Check if positive
-    const amountNum = parseFloat(cleanAmount);
-    if (amountNum <= 0) {
-      throw new Error('amount must be a positive number');
-    }
-    
-    // Split into integer and decimal parts
-    const [integerPart, decimalPart = ''] = cleanAmount.split('.');
-    
-    // Check max 18 digits before decimal point (uint256 max with 18 decimals)
-    if (integerPart.length > 18) {
-      throw new Error(`amount cannot have more than 18 digits before the decimal point (got ${integerPart.length} digits: ${integerPart})`);
-    }
-    
-    // Check that integer part only contains digits
-    if (!/^\d+$/.test(integerPart)) {
-      throw new Error('amount integer part must contain only digits');
-    }
-    
-    // Check that decimal part only contains digits (if present)
-    if (decimalPart && !/^\d*$/.test(decimalPart)) {
-      throw new Error('amount decimal part must contain only digits');
-    }
-    
-    // Return the cleaned amount as string
-    return cleanAmount;
-  }
-
-  /**
-   * Create a new ZK intent
-   * @param {Object} options
-   * @param {Object} options.payload - Transaction payload {recipient, amount, token, walletType, walletAddress}
-   * @param {string} options.walletSignature - Wallet signature of the payload
-   * @param {Object} [options.metadata] - Optional metadata {note, priority, ...}
-   * @returns {Promise<Object>} Backend response
-   */
-  async createIntent({ payload, walletSignature, metadata = {} }) {
-    // 1️⃣ Validate input
-    if (!payload || typeof payload !== 'object') {
-      throw new Error('payload must be a non-empty object');
-    }
-    if (!walletSignature || typeof walletSignature !== 'string') {
-      throw new Error('walletSignature is required and must be a string');
-    }
-
-    const requiredFields = ['recipient', 'amount', 'token', 'walletType'];
-    const missingFields = requiredFields.filter((f) => !(f in payload));
-    if (missingFields.length > 0) {
-      throw new Error(`Missing required payload fields: ${missingFields.join(', ')}`);
-    }
-
-    // Validate and normalize amount
-    const validatedAmount = this.validateAmount(payload.amount);
-    
-    // Create a copy of payload with validated amount
-    const validatedPayload = {
-      ...payload,
-      amount: validatedAmount
+    this.config = {
+      poseidonUrl: config.poseidonUrl || 'http://localhost:3001',
+      merkleUrl: config.merkleUrl || 'http://localhost:3002',
+      proverUrl: config.proverUrl || 'http://localhost:3003',
+      walletSignature: config.walletSignature,
+      ...config
     };
-
-    // Ensure walletAddress is provided
-    if (!validatedPayload.walletAddress) {
-      console.warn('walletAddress not provided, using default placeholder');
-      validatedPayload.walletAddress = '0xDEFAULTADDRESS';
+    
+    this.keyManager = new KeyManager();
+    this.poseidonClient = new PoseidonClient(this.config.poseidonUrl);
+    this.merkleClient = new MerkleClient(this.config.merkleUrl);
+    this.noteEngine = new NoteEngine(this.poseidonClient);
+    this.storageManager = new StorageManager(this.config.walletSignature);
+    this.proofInputs = new ProofInputs(this.poseidonClient, this.merkleClient);
+    this.executionBundle = new ExecutionBundle();
+  }
+  
+  async initialize() {
+    console.log('🔧 Initializing Shade SDK...');
+    
+    // Test Poseidon service
+    const poseidonReady = await this.poseidonClient.testConnection();
+    if (!poseidonReady) {
+      throw new Error('Poseidon service not available');
     }
-
-    // 2️⃣ Combine payload and wallet signature
-    const combinedData = { ...validatedPayload, walletSignature };
-
-    // 3️⃣ Encrypt combined data
-    const { ciphertext, iv, tag } = encryptPayload(combinedData, this.hmacSecret);
-
-    // 4️⃣ Format encrypted data with ciphertext field
-    const encryptedData = {
-      ciphertext: ciphertext,
-      iv: iv,
-      tag: tag,
-      algorithm: 'AES-256-GCM'
-    };
-
-    // 5️⃣ Generate HMAC signature for request
-    const timestamp = new Date().toISOString();
-    const signature = signPayload(encryptedData.ciphertext, this.hmacSecret, timestamp);
-
-    // 6️⃣ Send request to backend
+    
+    // Initialize storage
+    await this.storageManager.init();
+    
+    console.log('✅ Shade SDK initialized');
+    return true;
+  }
+  
+  /**
+   * Create a new note with commitment
+   * @param {bigint|string|number} assetId - The asset identifier
+   * @param {bigint|string|number} amount - Exact amount (will be bucketed)
+   * @returns {Promise<Object>} {note, commitment, bucketAmount}
+   */
+  async createNote(assetId, amount) {
     try {
-      const response = await axios.post(
-        `${this.baseUrl}/intents/`,
-        {
-          intent: { 
-            payload: {
-              ...validatedPayload,
-              intent_id: payload.intent_id || `intent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-            }
-          },
-          encryptedData: encryptedData,
-          metadata: metadata,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': this.apiKey,
-            'x-signature': signature,
-            'x-timestamp': timestamp,
-          },
-        }
+      console.log(`📝 Creating note for asset ${assetId}, amount ${amount}`);
+      
+      // Generate secrets
+      const secrets = this.keyManager.generateSecrets();
+      console.log('🔐 Generated secrets');
+      
+      // Create note with commitment
+      const noteResult = await this.noteEngine.createNote(
+        secrets.secret,
+        secrets.nullifier,
+        assetId,
+        amount
       );
       
-      console.log('✅ Intent submitted successfully:', {
-        intentId: response.data.intentId,
-        status: response.data.status,
-        nullifier: response.data.nullifier,
-        websocket_channel: response.data.websocket_channel || `proof_${response.data.intentId}`
+      // Store note locally
+      const storageId = await this.storageManager.storeNote({
+        secrets: {
+          secret: secrets.secret.toString(),
+          nullifier: secrets.nullifier.toString(),
+          noteId: secrets.noteId.toString()
+        },
+        metadata: {
+          assetId: assetId.toString(),
+          amount: amount.toString(),
+          bucketAmount: noteResult.bucketAmount.toString(),
+          timestamp: Date.now(),
+          spent: false
+        },
+        commitment: noteResult.commitment.toString()
       });
       
-      return response.data;
-    } catch (err) {
-      console.error('❌ Failed to submit intent:', {
-        error: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-      throw err;
+      console.log(`💾 Note stored with ID: ${storageId}`);
+      
+      return {
+        note: {
+          secrets: secrets,
+          metadata: {
+            assetId: BigInt(assetId),
+            amount: BigInt(amount),
+            bucketAmount: noteResult.bucketAmount,
+            timestamp: Date.now(),
+            spent: false
+          }
+        },
+        commitment: noteResult.commitment,
+        bucketAmount: noteResult.bucketAmount,
+        storageId
+      };
+    } catch (error) {
+      console.error('❌ Error creating note:', error);
+      throw error;
     }
   }
-
+  
   /**
-   * Listen for proof ready event over WebSocket
-   * @param {string} intentId - ID of the intent
-   * @param {function} callback - Function called with proof data
-   * @returns {WebSocket} WebSocket instance
+   * Prepare proof for spending a note
+   * @param {string} commitment - Note commitment
+   * @param {Object} options - Proof options
+   * @returns {Promise<Object>} Proof inputs
    */
-  listenProof(intentId, callback) {
-    if (!intentId) throw new Error('intentId is required');
-
-    const wsUrl = `${this.baseUrl.replace(/^http/, 'ws')}/ws/proofs/${intentId}/`;
-    return connectWebSocket(wsUrl, callback);
+  async prepareProof(commitment, options = {}) {
+    try {
+      console.log(`🔍 Preparing proof for commitment: ${commitment}`);
+      
+      // Load note from storage
+      const storedNote = await this.storageManager.getNote(commitment);
+      if (!storedNote) {
+        throw new Error(`Note not found for commitment: ${commitment}`);
+      }
+      
+      if (storedNote.metadata.spent) {
+        throw new Error('Note already spent');
+      }
+      
+      // Get Merkle path from service
+      const merklePath = await this.merkleClient.getMerklePath(commitment);
+      console.log('🌳 Retrieved Merkle path');
+      
+      // Assemble proof inputs
+      const inputs = await this.proofInputs.assemble(
+        storedNote,
+        merklePath,
+        options.relayerFee || 0n,
+        options.protocolFee || 0n
+      );
+      
+      console.log('📊 Proof inputs assembled');
+      return inputs;
+    } catch (error) {
+      console.error('❌ Error preparing proof:', error);
+      throw error;
+    }
   }
-
+  
   /**
-   * Poll for proof status (alternative to WebSocket)
-   * @param {string} intentId - ID of the intent
-   * @param {number} [interval=2000] - Polling interval in ms
-   * @param {number} [timeout=60000] - Timeout in ms
-   * @returns {Promise<Object>} Proof result
+   * Generate proof using prover service
+   * @param {Object} proofInputs - Assembled proof inputs
+   * @returns {Promise<Object>} ZK proof
    */
-  async pollProofStatus(intentId, interval = 2000, timeout = 60000) {
-    return new Promise((resolve, reject) => {
-      const startTime = Date.now();
+  async generateProof(proofInputs) {
+    try {
+      console.log('⚡ Generating ZK proof...');
       
-      const poll = async () => {
-        try {
-          const response = await axios.get(
-            `${this.baseUrl}/intents/status/${intentId}/`,
-            {
-              headers: {
-                'x-api-key': this.apiKey,
-              },
-            }
-          );
-          
-          if (response.data.status === 'completed' || response.data.status === 'failed') {
-            resolve(response.data);
-          } else if (Date.now() - startTime > timeout) {
-            reject(new Error(`Polling timeout after ${timeout}ms`));
-          } else {
-            setTimeout(poll, interval);
-          }
-        } catch (err) {
-          reject(err);
+      // Send to prover service (you'll need to implement this)
+      const response = await fetch(`${this.config.proverUrl}/generate-proof`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(proofInputs)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Prover service error: ${response.statusText}`);
+      }
+      
+      const proof = await response.json();
+      console.log('✅ Proof generated');
+      
+      return proof;
+    } catch (error) {
+      console.error('❌ Error generating proof:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Build execution bundle
+   * @param {Object} proof - ZK proof
+   * @param {Object} publicInputs - Public inputs
+   * @param {Object} callData - Contract call data
+   * @param {Object} options - Execution options
+   * @returns {Promise<Object>} Execution bundle
+   */
+  async buildExecutionBundle(proof, publicInputs, callData, options = {}) {
+    try {
+      console.log('📦 Building execution bundle...');
+      
+      const bundle = this.executionBundle.build({
+        proof,
+        publicInputs,
+        callData,
+        constraints: {
+          maxFee: options.maxFee || 0n,
+          expiry: options.expiry || Math.floor(Date.now() / 1000) + 3600,
+          recipient: options.recipient
         }
-      };
+      });
       
-      poll();
-    });
+      console.log('✅ Execution bundle ready');
+      return bundle;
+    } catch (error) {
+      console.error('❌ Error building execution bundle:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get all unspent notes
+   * @returns {Promise<Array>} List of unspent notes
+   */
+  async getUnspentNotes() {
+    return this.storageManager.getUnspentNotes();
+  }
+  
+  /**
+   * Mark note as spent
+   * @param {string} commitment - Note commitment
+   */
+  async markNoteSpent(commitment) {
+    await this.storageManager.markAsSpent(commitment);
+    console.log(`🏷️ Marked note ${commitment} as spent`);
   }
 }
-
-module.exports = ZKIntentSDK;
