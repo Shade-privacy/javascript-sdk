@@ -1,5 +1,5 @@
-import { SHADE_DOMAIN } from '../domain/constants';
-import { PoseidonClient } from '../crypto/poseidon';
+import { SHADE_DOMAIN } from '../domain/constants.js';
+import { PoseidonClient } from '../crypto/poseidon.js';
 
 export interface CommitmentResult {
   commitment: bigint;
