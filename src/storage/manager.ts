@@ -57,21 +57,21 @@ class NodeStorageAdapter implements StorageAdapter {
     }
   }
   
-  private async loadFromFile(): Promise<void> {
-    try {
-      const fs = await import('node:fs');
-      
-      if (fs.existsSync(this.filePath)) {
-        const content = fs.readFileSync(this.filePath, 'utf8');
-        const data = JSON.parse(content);
-        this.data = new Map(Object.entries(data));
-        console.log(`📁 Loaded ${this.data.size} notes from ${this.filePath}`);
-      }
-    } catch (error) {
-      console.warn('⚠️ Could not load notes from file:', error);
-      this.data = new Map();
+ private async loadFromFile(): Promise<void> {
+  try {
+    const fs = await import('node:fs');
+    
+    if (fs.existsSync(this.filePath)) {
+      const content = fs.readFileSync(this.filePath, 'utf8');
+      const data = JSON.parse(content);
+      this.data = new Map(Object.entries(data));
+      console.log(`📁 Loaded ${this.data.size} notes from ${this.filePath}`);
     }
+  } catch (error) {
+    console.warn('⚠️ Could not load notes from file:', error);
+    this.data = new Map();
   }
+}
   
   private async saveToFile(): Promise<void> {
   try {
