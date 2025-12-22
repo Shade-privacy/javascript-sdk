@@ -1,0 +1,12 @@
+--- index.ts
++++ index.ts
+@@ -185,7 +185,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
+       try {
+         await sdk.initialize();
+         console.log('✅ SDK initialized');
+-      } catch (err) {
++      } catch (err: any) {
++        const error = err as Error;
+         console.log('⚠️  Services not available (expected):', error.message);
+         console.log('💡 Start services with: npm run services:all');
+       }

@@ -1,0 +1,78 @@
+
+                                                                                 
+┌──(pete㉿Peter)-[~/projects/sdks/node_sdks]
+└─$ npm start                                                           
+
+> shade-privacy@1.0.0-alpha.0 start
+> node dist/index.js
+
+                                                                                 
+┌──(pete㉿Peter)-[~/projects/sdks/node_sdks]
+└─$ # Check if your index.ts has any console.log
+echo "=== Checking for console.log in src/index.ts ==="
+grep -n "console.log" src/index.ts
+
+# Check the compiled output
+echo "\n=== First 50 lines of dist/index.js ==="
+head -50 dist/index.js
+=== Checking for console.log in src/index.ts ===
+52:    console.log('🔧 Initializing Shade SDK...');
+63:    console.log('✅ Shade SDK initialized');
+74:    console.log(`📝 Creating note: ${amount} of asset ${assetId}`);
+79:    console.log(`💾 Note stored with commitment: ${note.metadata.commitment}`);
+109:    console.log(`🔍 Preparing spend proof for: ${commitment}`);
+127:    console.log(`📊 Proof inputs assembled`);
+152:    console.log(`🏷 Note marked as spent: ${commitment}`);
+
+=== First 50 lines of dist/index.js ===
+import { NoteEngine } from './core/notes.js';
+import { CommitmentBuilder } from './core/commitment_builder.js';
+import { PoseidonClient } from './crypto/poseidon.js';
+import { StorageManager } from './storage/manager.js';
+import { MerkleClient } from './merkle/client.js';
+import { ProofInputsAssembler } from './prover/inputs.js';
+import { ExecutionBundleBuilder } from './execution/bundle.js';
+export class ShadeSDK {
+    constructor(config) {
+        // Validate config
+        if (!config.walletSignature) {
+            throw new Error('walletSignature is required');
+        }
+        this.config = config;
+        // Initialize clients
+        this.poseidonClient = new PoseidonClient(config.poseidonUrl);
+        this.merkleClient = new MerkleClient(config.merkleUrl);
+        // Initialize core components
+        this.commitmentBuilder = new CommitmentBuilder(this.poseidonClient);
+        this.noteEngine = new NoteEngine(this.commitmentBuilder);
+        this.storage = new StorageManager();
+        this.proofAssembler = new ProofInputsAssembler(this.merkleClient, this.commitmentBuilder);
+        this.bundleBuilder = new ExecutionBundleBuilder();
+    }
+    /**
+     * Initialize SDK (must be called first)
+     */
+    async initialize() {
+        console.log('🔧 Initializing Shade SDK...');
+        // Test Poseidon service
+        const poseidonReady = await this.poseidonClient.testConnection();
+        if (!poseidonReady) {
+            throw new Error('Poseidon service not available');
+        }
+        // Initialize storage
+        await this.storage.initialize(this.config.walletSignature);
+        console.log('✅ Shade SDK initialized');
+    }
+    /**
+     * Create a new note (deposit)
+     */
+    async createNote(assetId, amount) {
+        console.log(`📝 Creating note: ${amount} of asset ${assetId}`);
+        const note = await this.noteEngine.createNote(assetId, amount);
+        const storageId = await this.storage.storeNote(note);
+        console.log(`💾 Note stored with commitment: ${note.metadata.commitment}`);
+        return {
+            note,
+            commitment: note.metadata.commitment,
+            bucketAmount: note.metadata.bucketAmount
+OM

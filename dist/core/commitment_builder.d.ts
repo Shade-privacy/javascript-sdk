@@ -1,4 +1,4 @@
-import { PoseidonClient } from '../crypto/poseidon';
+import { PoseidonClient } from '../crypto/poseidon.js';
 export interface CommitmentResult {
     commitment: bigint;
     bucketAmount: bigint;

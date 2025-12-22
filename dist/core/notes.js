@@ -1,4 +1,4 @@
-import { KeyManager } from './keys';
+import { KeyManager } from './keys.js';
 export class NoteEngine {
     constructor(commitmentBuilder) {
         this.commitmentBuilder = commitmentBuilder;

@@ -1,5 +1,3 @@
-# Create a services startup script
-cat > start-services.sh << 'EOF'
 #!/bin/bash
 
 echo "🚀 Starting Shade Services..."
@@ -16,7 +14,3 @@ echo "   - Poseidon: http://localhost:3001"
 echo "   - Merkle:   http://localhost:3002"
 echo ""
 
-EOF
-
-chmod +x start-services.sh
-./start-services.sh

@@ -1,13 +1,83 @@
-import { openDB } from 'idb';
 import { EncryptionService } from '../crypto/encryption.js';
-export class StorageManager {
+// Node.js file-based storage adapter
+class NodeStorageAdapter {
+    constructor(walletSignature) {
+        this.data = new Map();
+        const fs = require('fs');
+        const path = require('path');
+        const os = require('os');
+        const notesDir = path.join(os.homedir(), '.shade', 'notes');
+        if (!fs.existsSync(notesDir)) {
+            fs.mkdirSync(notesDir, { recursive: true });
+        }
+        this.filePath = path.join(notesDir, `${walletSignature.slice(0, 16)}.json`);
+        this.loadFromFile();
+    }
+    loadFromFile() {
+        const fs = require('fs');
+        try {
+            if (fs.existsSync(this.filePath)) {
+                const content = fs.readFileSync(this.filePath, 'utf8');
+                const data = JSON.parse(content);
+                this.data = new Map(Object.entries(data));
+            }
+        }
+        catch (error) {
+            console.warn('⚠️ Could not load notes from file:', error);
+            this.data = new Map();
+        }
+    }
+    saveToFile() {
+        const fs = require('fs');
+        try {
+            const data = Object.fromEntries(this.data);
+            fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+        }
+        catch (error) {
+            console.warn('⚠️ Could not save notes to file:', error);
+        }
+    }
+    async get(key) {
+        return this.data.get(key) || null;
+    }
+    async getAll() {
+        return Array.from(this.data.values());
+    }
+    async put(key, value) {
+        this.data.set(key, value);
+        this.saveToFile();
+    }
+    async delete(key) {
+        this.data.delete(key);
+        this.saveToFile();
+    }
+    async clear() {
+        this.data.clear();
+        this.saveToFile();
+    }
+    async getAllByIndex(indexName, value) {
+        const allNotes = await this.getAll();
+        switch (indexName) {
+            case 'spent':
+                return allNotes.filter(note => note.spent === value);
+            case 'assetId':
+                return allNotes.filter(note => note.metadata.assetId === value.toString());
+            case 'spent_asset':
+                const [spent, assetId] = value;
+                return allNotes.filter(note => note.spent === spent && note.metadata.assetId === assetId.toString());
+            default:
+                return allNotes;
+        }
+    }
+}
+// Browser IndexedDB storage adapter
+class BrowserStorageAdapter {
     constructor() {
         this.db = null;
-        this.storageKey = null;
-        this.encryption = new EncryptionService();
+        // Will be initialized in initialize()
     }
-    async initialize(walletSignature) {
-        this.storageKey = await this.encryption.deriveStorageKey(walletSignature);
+    async initialize() {
+        const { openDB } = await import('idb');
         this.db = await openDB('shade-notes', 2, {
             upgrade(db, oldVersion, newVersion, transaction) {
                 if (!db.objectStoreNames.contains('notes')) {
@@ -24,7 +94,52 @@ export class StorageManager {
                 }
             },
         });
-        console.log('💾 Storage initialized');
+    }
+    async get(key) {
+        return this.db.get('notes', key);
+    }
+    async getAll() {
+        return this.db.getAll('notes');
+    }
+    async put(key, value) {
+        await this.db.put('notes', value);
+    }
+    async delete(key) {
+        await this.db.delete('notes', key);
+    }
+    async clear() {
+        await this.db.clear('notes');
+    }
+    async getAllByIndex(indexName, value) {
+        if (indexName === 'spent_asset') {
+            return this.db.getAllFromIndex('notes', 'spent_asset', IDBKeyRange.bound([value[0], value[1]], [value[0], value[1]]));
+        }
+        else {
+            return this.db.getAllFromIndex('notes', indexName, IDBKeyRange.only(value));
+        }
+    }
+}
+export class StorageManager {
+    constructor() {
+        this.adapter = null;
+        this.storageKey = null;
+        this.encryption = new EncryptionService();
+        this.isNode = typeof window === 'undefined' && typeof process !== 'undefined';
+    }
+    async initialize(walletSignature) {
+        // Derive storage key
+        this.storageKey = await this.encryption.deriveStorageKey(walletSignature);
+        // Initialize appropriate storage adapter
+        if (this.isNode) {
+            this.adapter = new NodeStorageAdapter(walletSignature);
+            console.log('💾 Node.js storage initialized');
+        }
+        else {
+            const browserAdapter = new BrowserStorageAdapter();
+            await browserAdapter.initialize();
+            this.adapter = browserAdapter;
+            console.log('💾 Browser storage initialized');
+        }
     }
     getStorageKey() {
         if (!this.storageKey) {
@@ -32,15 +147,16 @@ export class StorageManager {
         }
         return this.storageKey;
     }
-    getDB() {
-        if (!this.db) {
-            throw new Error('Database not initialized. Call initialize() first.');
+    getAdapter() {
+        if (!this.adapter) {
+            throw new Error('Storage adapter not initialized. Call initialize() first.');
         }
-        return this.db;
+        return this.adapter;
     }
     async storeNote(note) {
-        const db = this.getDB();
+        const adapter = this.getAdapter();
         const key = this.getStorageKey();
+        // Convert secrets to JSON and encrypt
         const secretsJson = JSON.stringify({
             secret: note.secrets.secret.toString(),
             nullifier: note.secrets.nullifier.toString(),
@@ -55,14 +171,17 @@ export class StorageManager {
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
-        await db.put('notes', storedNote);
-        await this.backupToFilesystem(storedNote);
-        return note.metadata.commitment.toString();
+        await adapter.put(storedNote.commitment, storedNote);
+        // In Node.js, also create backup
+        if (this.isNode) {
+            await this.backupToFilesystem(storedNote);
+        }
+        return storedNote.commitment;
     }
     async getNote(commitment) {
-        const db = this.getDB();
+        const adapter = this.getAdapter();
         const key = this.getStorageKey();
-        const stored = await db.get('notes', commitment);
+        const stored = await adapter.get(commitment);
         if (!stored)
             return null;
         const secretsJson = await this.encryption.decrypt(key, stored.encryptedSecrets);
@@ -78,50 +197,14 @@ export class StorageManager {
         };
     }
     async getUnspentNotes(assetId) {
-        const db = this.getDB();
+        const adapter = this.getAdapter();
         const key = this.getStorageKey();
-        let storedNotes = [];
+        let storedNotes;
         if (assetId !== undefined) {
-            // Method 1: Using getAll and filter (simpler)
-            const allNotes = await db.getAll('notes');
-            storedNotes = allNotes.filter((note) => !note.spent && note.metadata.assetId === assetId.toString());
+            storedNotes = await adapter.getAllByIndex('spent_asset', [false, assetId.toString()]);
         }
         else {
-            // Method 2: Get all notes and filter for unspent
-            const allNotes = await db.getAll('notes');
-            storedNotes = allNotes.filter((note) => !note.spent);
-            // OR Method 3: If you want to use the index:
-            // storedNotes = await db.getAllFromIndex('notes', 'spent', IDBKeyRange.only(false));
-        }
-        // Decrypt all notes
-        const notes = await Promise.all(storedNotes.map(async (stored) => {
-            const secretsJson = await this.encryption.decrypt(key, stored.encryptedSecrets);
-            const secretsData = JSON.parse(secretsJson);
-            const secrets = {
-                secret: BigInt(secretsData.secret),
-                nullifier: BigInt(secretsData.nullifier),
-                noteId: BigInt(secretsData.noteId)
-            };
-            return {
-                secrets,
-                metadata: stored.metadata
-            };
-        }));
-        return notes;
-    }
-    // Alternative: Using IDBKeyRange correctly
-    async getUnspentNotesWithRange(assetId) {
-        const db = this.getDB();
-        const key = this.getStorageKey();
-        let storedNotes = [];
-        if (assetId !== undefined) {
-            // For composite index, use IDBKeyRange
-            const assetIdStr = assetId.toString();
-            storedNotes = await db.getAllFromIndex('notes', 'spent_asset', IDBKeyRange.bound([false, assetIdStr], [false, assetIdStr]));
-        }
-        else {
-            // For simple index, use IDBKeyRange.only()
-            storedNotes = await db.getAllFromIndex('notes', 'spent', IDBKeyRange.only(false));
+            storedNotes = await adapter.getAllByIndex('spent', false);
         }
         // Decrypt all notes
         const notes = await Promise.all(storedNotes.map(async (stored) => {
@@ -140,32 +223,30 @@ export class StorageManager {
         return notes;
     }
     async markAsSpent(commitment) {
-        const db = this.getDB();
-        const note = await db.get('notes', commitment);
-        if (note) {
-            note.spent = true;
-            note.updatedAt = Date.now();
-            await db.put('notes', note);
+        const adapter = this.getAdapter();
+        const stored = await adapter.get(commitment);
+        if (stored) {
+            stored.spent = true;
+            stored.updatedAt = Date.now();
+            await adapter.put(commitment, stored);
         }
     }
     async getAllNotes() {
-        const db = this.getDB();
-        return db.getAll('notes');
+        const adapter = this.getAdapter();
+        return adapter.getAll();
     }
     async clearAll() {
-        const db = this.getDB();
-        await db.clear('notes');
+        const adapter = this.getAdapter();
+        await adapter.clear();
     }
     async backupToFilesystem(note) {
-        if (typeof window !== 'undefined')
-            return;
         try {
-            const fs = await import('fs/promises');
-            const path = await import('path');
-            const { homedir } = await import('os');
-            const notesDir = path.join(homedir(), '.shade', 'notes');
+            const fs = require('fs/promises');
+            const path = require('path');
+            const os = require('os');
+            const notesDir = path.join(os.homedir(), '.shade', 'backups');
             await fs.mkdir(notesDir, { recursive: true });
-            const filename = `note_${note.commitment.slice(0, 16)}.json`;
+            const filename = `note_${note.commitment.slice(0, 16)}_${Date.now()}.json`;
             const filepath = path.join(notesDir, filename);
             await fs.writeFile(filepath, JSON.stringify(note, null, 2), 'utf8');
             console.log(`💾 Note backed up to: ${filepath}`);
@@ -176,9 +257,10 @@ export class StorageManager {
     }
     getStatus() {
         return {
-            initialized: !!this.db && !!this.storageKey,
+            initialized: !!this.adapter && !!this.storageKey,
+            environment: this.isNode ? 'node' : 'browser',
             hasKey: !!this.storageKey,
-            hasDB: !!this.db
+            hasAdapter: !!this.adapter
         };
     }
 }

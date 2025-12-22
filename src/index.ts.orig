@@ -185,7 +185,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         await sdk.initialize();
         console.log('✅ SDK initialized');
       } catch (err) {
-        console.log('⚠️  Services not available (expected):', err);
+        console.log('⚠️  Services not available (expected):', err.message);
         console.log('💡 Start services with: npm run services:all');
       }
       
@@ -197,8 +197,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       console.log('4. Execute private transactions');
       
     } catch (error) {
-      const err = error as Error;
-      console.error('❌ Error:', err.message);
+      console.error('❌ Error:', error.message);
     }
   }
   

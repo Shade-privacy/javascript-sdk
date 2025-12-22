@@ -9,25 +9,26 @@ interface StoredNote {
     updatedAt: number;
 }
 export declare class StorageManager {
-    private db;
+    private adapter;
     private encryption;
     private storageKey;
+    private isNode;
     constructor();
     initialize(walletSignature: string): Promise<void>;
     private getStorageKey;
-    private getDB;
+    private getAdapter;
     storeNote(note: Note): Promise<string>;
     getNote(commitment: string): Promise<Note | null>;
     getUnspentNotes(assetId?: bigint): Promise<Note[]>;
-    getUnspentNotesWithRange(assetId?: bigint): Promise<Note[]>;
     markAsSpent(commitment: string): Promise<void>;
     getAllNotes(): Promise<StoredNote[]>;
     clearAll(): Promise<void>;
     private backupToFilesystem;
     getStatus(): {
         initialized: boolean;
+        environment: string;
         hasKey: boolean;
-        hasDB: boolean;
+        hasAdapter: boolean;
     };
 }
 export {};

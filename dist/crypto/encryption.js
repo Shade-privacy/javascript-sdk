@@ -1,4 +1,4 @@
-import { SHADE_DOMAIN } from '../domain/constants';
+import { SHADE_DOMAIN } from '../domain/constants.js';
 export class EncryptionService {
     /**
      * Derive storage key from wallet signature

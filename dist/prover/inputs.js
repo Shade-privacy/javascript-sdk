@@ -1,4 +1,4 @@
-import { SHADE_DOMAIN } from '../domain/constants';
+import { SHADE_DOMAIN } from '../domain/constants.js';
 export class ProofInputsAssembler {
     constructor(merkleClient, commitmentBuilder) {
         this.merkleClient = merkleClient;
