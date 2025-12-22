@@ -1,6 +1,6 @@
-import { KeyManager, NoteSecrets } from './keys.ts';
-import { CommitmentBuilder } from './commitment_builder.ts';
-import { SHADE_DOMAIN, AssetId } from '../domain/constants.ts';
+import { KeyManager, NoteSecrets } from './keys';
+import { CommitmentBuilder } from './commitment_builder';
+import { SHADE_DOMAIN, AssetId } from '../domain/constants';
 
 export interface NoteMetadata {
   assetId: AssetId;

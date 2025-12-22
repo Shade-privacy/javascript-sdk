@@ -1,7 +1,7 @@
 import { openDB, IDBPDatabase } from 'idb';
-import { EncryptionService, EncryptedData } from '../crypto/encryption.js';
-import { Note, NoteMetadata } from '../core/notes.js';
-import { NoteSecrets } from '../core/keys.js';
+import { EncryptionService, EncryptedData } from '../crypto/encryption';
+import { Note, NoteMetadata } from '../core/notes';
+import { NoteSecrets } from '../core/keys';
 
 interface StoredNote {
   commitment: string;
@@ -80,7 +80,7 @@ export class StorageManager {
     // Store in IndexedDB
     await this.db.put('notes', storedNote);
     
-    // Backup to filesystem if in Node.js
+    // Backup to filesystem if in Node
     await this.backupToFilesystem(storedNote);
     
     return note.metadata.commitment.toString();
@@ -178,7 +178,7 @@ export class StorageManager {
   }
   
   /**
-   * Backup note to filesystem (Node.js only)
+   * Backup note to filesystem (Node only)
    */
   private async backupToFilesystem(note: StoredNote): Promise<void> {
     if (typeof window !== 'undefined') return; // Browser only
@@ -191,7 +191,7 @@ export class StorageManager {
       const notesDir = path.join(homedir(), '.shade', 'notes');
       await fs.mkdir(notesDir, { recursive: true });
       
-      const filename = `note_${note.commitment}.json`;
+      const filename = `note_${note.commitment}on`;
       const filepath = path.join(notesDir, filename);
       
       await fs.writeFile(filepath, JSON.stringify(note, null, 2), 'utf8');

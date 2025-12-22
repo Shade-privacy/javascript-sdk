@@ -1,0 +1,69 @@
+import { Note } from './core/notes.ts';
+import { PublicInputs } from './prover/inputs.ts';
+import { ExecutionConstraints, ExecutionBundle } from './execution/bundle.ts';
+import { ProofInputs } from './prover/inputs.ts';
+import { AssetId } from './domain/constants.ts';
+export interface SDKConfig {
+    walletSignature: string;
+    poseidonUrl?: string;
+    merkleUrl?: string;
+    proverUrl?: string;
+}
+export declare class ShadeSDK {
+    private config;
+    private poseidonClient;
+    private merkleClient;
+    private commitmentBuilder;
+    private noteEngine;
+    private storage;
+    private proofAssembler;
+    private bundleBuilder;
+    constructor(config: SDKConfig);
+    /**
+     * Initialize SDK (must be called first)
+     */
+    initialize(): Promise<void>;
+    /**
+     * Create a new note (deposit)
+     */
+    createNote(assetId: AssetId, amount: bigint): Promise<{
+        note: Note;
+        commitment: bigint;
+        bucketAmount: bigint;
+    }>;
+    /**
+     * Get unspent notes (optionally filtered by asset)
+     */
+    getUnspentNotes(assetId?: AssetId): Promise<Note[]>;
+    /**
+     * Prepare proof for spending a note
+     */
+    prepareSpendProof(commitment: string, options?: {
+        relayerFee?: bigint;
+        protocolFee?: bigint;
+        recipient?: string;
+    }): Promise<{
+        note: Note;
+        proofInputs: ProofInputs;
+    }>;
+    /**
+     * Build execution bundle
+     */
+    buildExecutionBundle(proof: any, publicInputs: PublicInputs, callData: string, constraints: ExecutionConstraints): Promise<ExecutionBundle>;
+    /**
+     * Mark note as spent (call after successful execution)
+     */
+    markNoteSpent(commitment: string): Promise<void>;
+    /**
+     * Get SDK version and status
+     */
+    getStatus(): {
+        version: string;
+        initialized: boolean;
+        services: {
+            poseidon: string;
+            merkle: string;
+        };
+    };
+}
+//# sourceMappingURL=index.d.ts.map

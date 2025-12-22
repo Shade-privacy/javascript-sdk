@@ -1,66 +1,38 @@
 {
-  "name": "shade-privacy",
-  "version": "1.0.0",
-  "description": "Node.js SDK for private cross-chain transactions with ZK proofs. Supports ETH, SOL, StarkNet, Base, Sei, AVAX, SUI + 13 chains.",
-  "main": "src/index.js",
-  "types": "lib/index.d.ts",
+  "name": "@shade-protocol/sdk",
+  "version": "1.0.0-alpha.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "lint": "eslint src/",
-    "prepublishOnly": "npm test && npm run lint"
-  },
-  "keywords": [
-    "privacy",
-    "blockchain",
-    "zk",
-    "zero-knowledge",
-    "cross-chain",
-    "ethereum",
-    "solana",
-    "starknet",
-    "cryptocurrency",
-    "web3",
-    "sdk"
-  ],
-  "author": "Shade Privacy <ikinyapeter87@gmail.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Shade-privacy/js-sdk.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Shade-privacy/js-sdk/issues"
-  },
-  "homepage": "https://github.com/Shade-privacy/js-sdk#readme",
-  "engines": {
-    "node": ">=14.0.0"
+    "dev": "tsc --watch",
+    "start": "ts-node src/index.ts",
+    "demo": "ts-node demo.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ts": "ts-node src/test.js",
+    "services:poseidon": "node services/poseidon-service.js",
+    "services:merkle": "node services/merkle-service.js",
+    "services:all": "concurrently \"npm run services:poseidon\" \"npm run services:merkle\""
   },
   "dependencies": {
-    "crypto-js": "^4.2.0",
-    "idb": "^8.0.3",
-    "jest": "^30.2.0",
-    "shade-privacy": "^1.0.0",
-    "uuid": "^13.0.0",
-    "ws": "^8.14.0"
+    "axios": "^1.6.0",
+    "idb": "^8.0.0",
+    "uuid": "^9.0.0",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "circomlibjs": "^0.1.7",
+    "cors": "^1.2.2"
   },
   "devDependencies": {
+    "typescript": "^5.3.0",
+    "ts-node": "^10.9.0",
     "@types/node": "^20.0.0",
-    "axios": "^1.13.2",
-    "crypto-js": "^4.2.0",
-    "dotenv": "^17.2.3",
-    "eslint": "^8.0.0",
-    "ethers": "^6.16.0",
-    "ws": "^8.18.3"
-  },
-  "prepublishOnly": "",
-  "jest": {
-    "passWithNoTests": true
-  },
-  "files": [
-    "src/",
-    "lib/",
-    "README.md",
-    "LICENSE"
-  ]
+    "@types/express": "^4.17.21",
+    "@types/uuid": "^9.0.0",
+    "@types/cors": "^1.2.0",
+    "vitest": "^1.0.0",
+    "concurrently": "^8.2.0"
+  }
 }
