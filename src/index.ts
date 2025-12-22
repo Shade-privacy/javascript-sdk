@@ -1,4 +1,3 @@
-import { KeyManager } from './core/keys';
 import { NoteEngine, Note } from './core/notes';
 import { CommitmentBuilder } from './core/commitment_builder';
 import { PoseidonClient } from './crypto/poseidon';

@@ -1,21 +1,7 @@
-import { openDB, IDBPDatabase, DBSchema, StoreNames, StoreKey, StoreValue } from 'idb';
+import { openDB } from 'idb';
 import { EncryptionService, EncryptedData } from '../crypto/encryption.js';
 import { Note, NoteMetadata } from '../core/notes.js';
 import { NoteSecrets } from '../core/keys.js';
-
-// Define the database schema
-interface ShadeDBSchema extends DBSchema {
-  notes: {
-    key: string; // commitment
-    value: StoredNote;
-    indexes: {
-      'spent': boolean;
-      'assetId': string;
-      'createdAt': number;
-      'spent_asset': [boolean, string];
-    };
-  };
-}
 
 interface StoredNote {
   commitment: string;
@@ -27,7 +13,7 @@ interface StoredNote {
 }
 
 export class StorageManager {
-  private db: IDBPDatabase<ShadeDBSchema> | null = null;
+  private db: any = null;
   private encryption: EncryptionService;
   private storageKey: CryptoKey | null = null;
   
@@ -35,20 +21,12 @@ export class StorageManager {
     this.encryption = new EncryptionService();
   }
   
-  /**
-   * Initialize storage with wallet signature
-   */
   async initialize(walletSignature: string): Promise<void> {
-    // Derive encryption key
     this.storageKey = await this.encryption.deriveStorageKey(walletSignature);
     
-    // Initialize IndexedDB with proper typing
-    this.db = await openDB<ShadeDBSchema>('shade-notes', 2, {
+    this.db = await openDB('shade-notes', 2, {
       upgrade(db, oldVersion, newVersion, transaction) {
-        console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
-        
-        if (oldVersion < 1) {
-          // Version 1: initial schema
+        if (!db.objectStoreNames.contains('notes')) {
           const store = db.createObjectStore('notes', { keyPath: 'commitment' });
           store.createIndex('spent', 'spent');
           store.createIndex('assetId', 'metadata.assetId');
@@ -56,34 +34,43 @@ export class StorageManager {
         }
         
         if (oldVersion < 2) {
-          // Version 2: add composite index for queries
           const store = transaction.objectStore('notes');
-          store.createIndex('spent_asset', ['spent', 'metadata.assetId']);
+          if (!store.indexNames.contains('spent_asset')) {
+            store.createIndex('spent_asset', ['spent', 'metadata.assetId']);
+          }
         }
-      }
+      },
     });
     
     console.log('💾 Storage initialized');
   }
   
-  /**
-   * Store a note securely
-   */
-  async storeNote(note: Note): Promise<string> {
-    if (!this.db || !this.storageKey) {
-      throw new Error('Storage not initialized');
+  private getStorageKey(): CryptoKey {
+    if (!this.storageKey) {
+      throw new Error('Storage key not initialized. Call initialize() first.');
     }
+    return this.storageKey;
+  }
+  
+  private getDB(): any {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+    return this.db;
+  }
+  
+  async storeNote(note: Note): Promise<string> {
+    const db = this.getDB();
+    const key = this.getStorageKey();
     
-    // Encrypt secrets
     const secretsJson = JSON.stringify({
       secret: note.secrets.secret.toString(),
       nullifier: note.secrets.nullifier.toString(),
       noteId: note.secrets.noteId.toString()
     });
     
-    const encryptedSecrets = await this.encryption.encrypt(this.storageKey, secretsJson);
+    const encryptedSecrets = await this.encryption.encrypt(key, secretsJson);
     
-    // Prepare stored note
     const storedNote: StoredNote = {
       commitment: note.metadata.commitment.toString(),
       encryptedSecrets,
@@ -93,28 +80,20 @@ export class StorageManager {
       updatedAt: Date.now()
     };
     
-    // Store in IndexedDB
-    await this.db.put('notes', storedNote);
-    
-    // Backup to filesystem if in Node
+    await db.put('notes', storedNote);
     await this.backupToFilesystem(storedNote);
     
     return note.metadata.commitment.toString();
   }
   
-  /**
-   * Retrieve a note by commitment
-   */
   async getNote(commitment: string): Promise<Note | null> {
-    if (!this.db || !this.storageKey) {
-      throw new Error('Storage not initialized');
-    }
+    const db = this.getDB();
+    const key = this.getStorageKey();
     
-    const stored = await this.db.get('notes', commitment);
+    const stored = await db.get('notes', commitment);
     if (!stored) return null;
     
-    // Decrypt secrets
-    const secretsJson = await this.encryption.decrypt(this.storageKey, stored.encryptedSecrets);
+    const secretsJson = await this.encryption.decrypt(key, stored.encryptedSecrets);
     const secretsData = JSON.parse(secretsJson);
     
     const secrets: NoteSecrets = {
@@ -129,32 +108,31 @@ export class StorageManager {
     };
   }
   
-  /**
-   * Get all unspent notes for an asset
-   */
   async getUnspentNotes(assetId?: bigint): Promise<Note[]> {
-    if (!this.db || !this.storageKey) {
-      throw new Error('Storage not initialized');
-    }
+    const db = this.getDB();
+    const key = this.getStorageKey();
     
     let storedNotes: StoredNote[] = [];
     
     if (assetId !== undefined) {
-      // Query unspent notes for specific asset
-      const assetIdStr = assetId.toString();
-      storedNotes = await this.db.getAllFromIndex('notes', 'spent_asset', IDBKeyRange.bound(
-        [false, assetIdStr],
-        [false, assetIdStr]
-      ));
+      // Method 1: Using getAll and filter (simpler)
+      const allNotes = await db.getAll('notes');
+      storedNotes = allNotes.filter((note: any) => 
+        !note.spent && note.metadata.assetId === assetId.toString()
+      );
     } else {
-      // Query all unspent notes
-      storedNotes = await this.db.getAllFromIndex('notes', 'spent', false);
+      // Method 2: Get all notes and filter for unspent
+      const allNotes = await db.getAll('notes');
+      storedNotes = allNotes.filter((note: any) => !note.spent);
+      
+      // OR Method 3: If you want to use the index:
+      // storedNotes = await db.getAllFromIndex('notes', 'spent', IDBKeyRange.only(false));
     }
     
     // Decrypt all notes
     const notes = await Promise.all(
       storedNotes.map(async (stored) => {
-        const secretsJson = await this.encryption.decrypt(this.storageKey, stored.encryptedSecrets);
+        const secretsJson = await this.encryption.decrypt(key, stored.encryptedSecrets);
         const secretsData = JSON.parse(secretsJson);
         
         const secrets: NoteSecrets = {
@@ -173,46 +151,68 @@ export class StorageManager {
     return notes;
   }
   
-  /**
-   * Mark note as spent
-   */
+  // Alternative: Using IDBKeyRange correctly
+  async getUnspentNotesWithRange(assetId?: bigint): Promise<Note[]> {
+    const db = this.getDB();
+    const key = this.getStorageKey();
+    
+    let storedNotes: StoredNote[] = [];
+    
+    if (assetId !== undefined) {
+      // For composite index, use IDBKeyRange
+      const assetIdStr = assetId.toString();
+      storedNotes = await db.getAllFromIndex('notes', 'spent_asset', 
+        IDBKeyRange.bound([false, assetIdStr], [false, assetIdStr])
+      );
+    } else {
+      // For simple index, use IDBKeyRange.only()
+      storedNotes = await db.getAllFromIndex('notes', 'spent', IDBKeyRange.only(false));
+    }
+    
+    // Decrypt all notes
+    const notes = await Promise.all(
+      storedNotes.map(async (stored) => {
+        const secretsJson = await this.encryption.decrypt(key, stored.encryptedSecrets);
+        const secretsData = JSON.parse(secretsJson);
+        
+        const secrets: NoteSecrets = {
+          secret: BigInt(secretsData.secret),
+          nullifier: BigInt(secretsData.nullifier),
+          noteId: BigInt(secretsData.noteId)
+        };
+        
+        return {
+          secrets,
+          metadata: stored.metadata
+        };
+      })
+    );
+    
+    return notes;
+  }
+  
   async markAsSpent(commitment: string): Promise<void> {
-    if (!this.db) throw new Error('Storage not initialized');
+    const db = this.getDB();
     
-    const tx = this.db.transaction('notes', 'readwrite');
-    const store = tx.objectStore('notes');
-    
-    const note = await store.get(commitment);
+    const note = await db.get('notes', commitment);
     if (note) {
       note.spent = true;
       note.updatedAt = Date.now();
-      await store.put(note);
+      await db.put('notes', note);
     }
-    
-    await tx.done;
   }
   
-  /**
-   * Get all notes (for debugging)
-   */
   async getAllNotes(): Promise<StoredNote[]> {
-    if (!this.db) throw new Error('Storage not initialized');
-    return this.db.getAll('notes');
+    const db = this.getDB();
+    return db.getAll('notes');
   }
   
-  /**
-   * Clear all notes (for testing)
-   */
   async clearAll(): Promise<void> {
-    if (!this.db) throw new Error('Storage not initialized');
-    await this.db.clear('notes');
+    const db = this.getDB();
+    await db.clear('notes');
   }
   
-  /**
-   * Backup note to filesystem (Node only)
-   */
   private async backupToFilesystem(note: StoredNote): Promise<void> {
-    // Skip in browser
     if (typeof window !== 'undefined') return;
     
     try {
@@ -233,37 +233,11 @@ export class StorageManager {
     }
   }
   
-  /**
-   * Export all notes (for backup)
-   */
-  async exportNotes(): Promise<string> {
-    if (!this.db || !this.storageKey) {
-      throw new Error('Storage not initialized');
-    }
-    
-    const allNotes = await this.getAllNotes();
-    const exportData = {
-      version: '1.0.0',
-      timestamp: Date.now(),
-      notes: allNotes
+  getStatus() {
+    return {
+      initialized: !!this.db && !!this.storageKey,
+      hasKey: !!this.storageKey,
+      hasDB: !!this.db
     };
-    
-    return JSON.stringify(exportData, null, 2);
-  }
-  
-  /**
-   * Import notes (for restore)
-   */
-  async importNotes(jsonData: string): Promise<void> {
-    if (!this.db) throw new Error('Storage not initialized');
-    
-    const importData = JSON.parse(jsonData);
-    const tx = this.db.transaction('notes', 'readwrite');
-    
-    for (const note of importData.notes) {
-      await tx.store.put(note);
-    }
-    
-    await tx.done;
   }
 }
