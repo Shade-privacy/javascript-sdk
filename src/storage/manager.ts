@@ -2,10 +2,11 @@ import { EncryptionService, EncryptedData } from '../crypto/encryption.js';
 import { Note, NoteMetadata } from '../core/notes.js';
 import { NoteSecrets } from '../core/keys.js';
 
+// Storage-specific metadata interface
 interface StoredNote {
   commitment: string;
   encryptedSecrets: EncryptedData;
-  metadata: NoteMetadata;
+  metadata: any;  // ✅ Use 'any' or create a proper storage metadata interface
   spent: boolean;
   createdAt: number;
   updatedAt: number;

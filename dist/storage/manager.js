@@ -48,7 +48,14 @@ class NodeStorageAdapter {
         try {
             const fs = await import('node:fs');
             const data = Object.fromEntries(this.data);
-            fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+            // Custom JSON replacer to handle BigInt
+            const jsonString = JSON.stringify(data, (key, value) => {
+                if (typeof value === 'bigint') {
+                    return value.toString();
+                }
+                return value;
+            }, 2);
+            fs.writeFileSync(this.filePath, jsonString, 'utf8');
         }
         catch (error) {
             console.warn('⚠️ Could not save notes to file:', error);

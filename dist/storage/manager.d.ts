@@ -1,9 +1,9 @@
 import { EncryptedData } from '../crypto/encryption.js';
-import { Note, NoteMetadata } from '../core/notes.js';
+import { Note } from '../core/notes.js';
 interface StoredNote {
     commitment: string;
     encryptedSecrets: EncryptedData;
-    metadata: NoteMetadata;
+    metadata: any;
     spent: boolean;
     createdAt: number;
     updatedAt: number;
