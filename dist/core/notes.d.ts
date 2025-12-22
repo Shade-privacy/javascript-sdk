@@ -1,6 +1,6 @@
-import { NoteSecrets } from './keys.ts';
-import { CommitmentBuilder } from './commitment_builder.ts';
-import { AssetId } from '../domain/constants.ts';
+import { NoteSecrets } from './keys';
+import { CommitmentBuilder } from './commitment_builder';
+import { AssetId } from '../domain/constants';
 export interface NoteMetadata {
     assetId: AssetId;
     amount: bigint;

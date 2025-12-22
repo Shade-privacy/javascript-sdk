@@ -1,12 +1,12 @@
-import { NoteEngine, Note } from './core/notes';
-import { CommitmentBuilder } from './core/commitment_builder';
-import { PoseidonClient } from './crypto/poseidon';
-import { StorageManager } from './storage/manager';
-import { MerkleClient } from './merkle/client';
-import { ProofInputsAssembler, PublicInputs } from './prover/inputs';
-import { ExecutionBundleBuilder, ExecutionConstraints, ExecutionBundle } from './execution/bundle';
-import { ProofInputs } from './prover/inputs';
-import { SHADE_DOMAIN, AssetId } from './domain/constants';
+import { NoteEngine, Note } from './core/notes.js';
+import { CommitmentBuilder } from './core/commitment_builder.js';
+import { PoseidonClient } from './crypto/poseidon.js';
+import { StorageManager } from './storage/manager.js';
+import { MerkleClient } from './merkle/client.js';
+import { ProofInputsAssembler, PublicInputs } from './prover/inputs.js';
+import { ExecutionBundleBuilder, ExecutionConstraints, ExecutionBundle } from './execution/bundle.js';
+import { ProofInputs } from './prover/inputs.js';
+import { SHADE_DOMAIN, AssetId } from './domain/constants.js';
 
 export interface SDKConfig {
   walletSignature: string;

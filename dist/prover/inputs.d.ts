@@ -1,6 +1,6 @@
-import { Note } from '../core/notes.ts';
-import { MerkleClient } from '../merkle/client.ts';
-import { CommitmentBuilder } from '../core/commitment_builder.ts';
+import { Note } from '../core/notes';
+import { MerkleClient } from '../merkle/client';
+import { CommitmentBuilder } from '../core/commitment_builder';
 export interface PrivateInputs {
     secret: string;
     nullifier: string;

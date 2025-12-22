@@ -1,4 +1,4 @@
-import { SHADE_DOMAIN } from '../domain/constants.ts';
+import { SHADE_DOMAIN } from '../domain/constants';
 export class CommitmentBuilder {
     constructor(poseidonClient) {
         this.poseidon = poseidonClient;

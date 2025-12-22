@@ -1,8 +1,8 @@
-import { Note } from './core/notes.ts';
-import { PublicInputs } from './prover/inputs.ts';
-import { ExecutionConstraints, ExecutionBundle } from './execution/bundle.ts';
-import { ProofInputs } from './prover/inputs.ts';
-import { AssetId } from './domain/constants.ts';
+import { Note } from './core/notes.js';
+import { PublicInputs } from './prover/inputs.js';
+import { ExecutionConstraints, ExecutionBundle } from './execution/bundle.js';
+import { ProofInputs } from './prover/inputs.js';
+import { AssetId } from './domain/constants.js';
 export interface SDKConfig {
     walletSignature: string;
     poseidonUrl?: string;

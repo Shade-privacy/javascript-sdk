@@ -1,10 +1,10 @@
-import { NoteEngine } from './core/notes.ts';
-import { CommitmentBuilder } from './core/commitment_builder.ts';
-import { PoseidonClient } from './crypto/poseidon.ts';
-import { StorageManager } from './storage/manager.ts';
-import { MerkleClient } from './merkle/client.ts';
-import { ProofInputsAssembler } from './prover/inputs.ts';
-import { ExecutionBundleBuilder } from './execution/bundle.ts';
+import { NoteEngine } from './core/notes.js';
+import { CommitmentBuilder } from './core/commitment_builder.js';
+import { PoseidonClient } from './crypto/poseidon.js';
+import { StorageManager } from './storage/manager.js';
+import { MerkleClient } from './merkle/client.js';
+import { ProofInputsAssembler } from './prover/inputs.js';
+import { ExecutionBundleBuilder } from './execution/bundle.js';
 export class ShadeSDK {
     constructor(config) {
         // Validate config

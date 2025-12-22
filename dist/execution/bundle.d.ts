@@ -1,4 +1,4 @@
-import { PublicInputs } from '../prover/inputs.ts';
+import { PublicInputs } from '../prover/inputs';
 export interface ExecutionConstraints {
     maxFee: bigint;
     expiry: number;

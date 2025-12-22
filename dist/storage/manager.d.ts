@@ -1,32 +1,34 @@
-import { Note } from '../core/notes.js';
+import { EncryptedData } from '../crypto/encryption.js';
+import { Note, NoteMetadata } from '../core/notes.js';
+interface StoredNote {
+    commitment: string;
+    encryptedSecrets: EncryptedData;
+    metadata: NoteMetadata;
+    spent: boolean;
+    createdAt: number;
+    updatedAt: number;
+}
 export declare class StorageManager {
     private db;
     private encryption;
     private storageKey;
     constructor();
-    /**
-     * Initialize storage with wallet signature
-     */
     initialize(walletSignature: string): Promise<void>;
-    /**
-     * Store a note securely
-     */
+    private getStorageKey;
+    private getDB;
     storeNote(note: Note): Promise<string>;
-    /**
-     * Retrieve a note by commitment
-     */
     getNote(commitment: string): Promise<Note | null>;
-    /**
-     * Get all unspent notes for an asset
-     */
     getUnspentNotes(assetId?: bigint): Promise<Note[]>;
-    /**
-     * Mark note as spent
-     */
+    getUnspentNotesWithRange(assetId?: bigint): Promise<Note[]>;
     markAsSpent(commitment: string): Promise<void>;
-    /**
-     * Backup note to filesystem (Node.js only)
-     */
+    getAllNotes(): Promise<StoredNote[]>;
+    clearAll(): Promise<void>;
     private backupToFilesystem;
+    getStatus(): {
+        initialized: boolean;
+        hasKey: boolean;
+        hasDB: boolean;
+    };
 }
+export {};
 //# sourceMappingURL=manager.d.ts.map

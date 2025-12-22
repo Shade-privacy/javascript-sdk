@@ -6,12 +6,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "ts-node src/index.ts",
-    "demo": "ts-node demo.ts",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "demo": "node demo.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ts": "ts-node src/test.js",
     "services:poseidon": "node services/poseidon-service.js",
     "services:merkle": "node services/merkle-service.js",
     "services:all": "concurrently \"npm run services:poseidon\" \"npm run services:merkle\""
