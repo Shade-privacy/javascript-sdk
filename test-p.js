@@ -33,7 +33,7 @@ async function testFullIntegration() {
     console.log(`   Max capacity: ${treeInfo.max_capacity}\n`);
     
     // 3. Create a test commitment (simulating your SDK)
-    const testCommitment = '1234567890123456789012345678901234567890123456789012345678901234';
+    const testCommitment = '301234567890123456789012345678901234567890123456789012345678901234';
     console.log('3. Inserting test commitment...');
     console.log(`   Commitment: ${testCommitment.slice(0, 16)}...`);
     
