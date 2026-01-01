@@ -1,72 +1,100 @@
-import { KeyManager, NoteSecrets } from './keys.js';
-import { CommitmentBuilder } from './commitment_builder.js';
-import { SHADE_DOMAIN, AssetId } from '../domain/constants.js';
+import { KeyManager, NoteSecrets } from "./keys.js";
+import { CommitmentBuilder } from "./commitment_builder.js";
+import { AssetId } from "../domain/constants.js";
 
+/* ──────────────────────────────────────────────
+   Note lifecycle states
+────────────────────────────────────────────── */
+export type NoteState =
+  | "UNSPENT"
+  | "PENDING_SPEND"
+  | "SPENT";
+
+/* ──────────────────────────────────────────────
+   Metadata (immutable)
+────────────────────────────────────────────── */
 export interface NoteMetadata {
-  assetId: AssetId;
-  amount: bigint;
-  bucketAmount: bigint;
-  timestamp: number;
-  spent: boolean;
-  commitment: bigint;
-  nullifierHash?: bigint;
+  readonly assetId: AssetId;
+  readonly amount: bigint;
+  readonly bucketAmount: bigint;
+  readonly commitment: bigint;
+  readonly createdAt: number;
+  readonly state: NoteState;
+  readonly nullifierHash?: bigint;
 }
 
 export interface Note {
-  secrets: NoteSecrets;
-  metadata: NoteMetadata;
+  readonly secrets: NoteSecrets;
+  readonly metadata: NoteMetadata;
 }
 
+/* ──────────────────────────────────────────────
+   Note engine
+────────────────────────────────────────────── */
 export class NoteEngine {
-  private commitmentBuilder: CommitmentBuilder;
-  
-  constructor(commitmentBuilder: CommitmentBuilder) {
-    this.commitmentBuilder = commitmentBuilder;
-  }
-  
-  /**
-   * Create a complete note with commitment
-   */
-  async createNote(assetId: AssetId, amount: bigint): Promise<Note> {
-    // Generate secrets
+  constructor(
+    private readonly commitmentBuilder: CommitmentBuilder
+  ) {}
+
+  async createNote(
+    assetId: AssetId,
+    amount: bigint
+  ): Promise<Note> {
     const secrets = KeyManager.generateSecrets();
-    
-    // Build commitment
-    const { commitment, bucketAmount } = await this.commitmentBuilder.buildCommitment(
-      secrets.secret,
-      secrets.nullifier,
-      assetId,
-      amount
-    );
-    
-    // Create metadata
-    const metadata: NoteMetadata = {
-      assetId,
-      amount,
-      bucketAmount,
-      timestamp: Date.now(),
-      spent: false,
-      commitment
-    };
-    
-    return { secrets, metadata };
+
+    const { commitment, bucketAmount } =
+      await this.commitmentBuilder.buildCommitment(
+        secrets.secret,
+        secrets.nullifier,
+        assetId,
+        amount
+      );
+
+    return Object.freeze({
+      secrets,
+      metadata: Object.freeze({
+        assetId,
+        amount,
+        bucketAmount,
+        commitment,
+        createdAt: Date.now(),
+        state: "UNSPENT"
+      })
+    });
   }
-  
-  /**
-   * Prepare note for spending
-   */
+
   async prepareForSpending(note: Note): Promise<Note> {
-    const nullifierHash = await this.commitmentBuilder.calculateNullifierHash(
-      note.secrets.nullifier,
-      note.secrets.secret
-    );
-    
-    return {
-      ...note,
-      metadata: {
+    if (note.metadata.state !== "UNSPENT") {
+      throw new Error("Note not spendable");
+    }
+
+    const nullifierHash =
+      await this.commitmentBuilder.calculateNullifierHash(
+        note.secrets.nullifier,
+        note.secrets.secret
+      );
+
+    return Object.freeze({
+      secrets: note.secrets,
+      metadata: Object.freeze({
         ...note.metadata,
+        state: "PENDING_SPEND",
         nullifierHash
-      }
-    };
+      })
+    });
+  }
+
+  markSpent(note: Note): Note {
+    if (note.metadata.state !== "PENDING_SPEND") {
+      throw new Error("Invalid spend transition");
+    }
+
+    return Object.freeze({
+      secrets: note.secrets,
+      metadata: Object.freeze({
+        ...note.metadata,
+        state: "SPENT"
+      })
+    });
   }
 }
