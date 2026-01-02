@@ -1,6 +1,6 @@
 
 
-# SHADE — TECHNICAL ARCHITECTURE REVIEW
+# veil — TECHNICAL ARCHITECTURE REVIEW
 
 *(Deposit → Privacy Set Growth → Withdrawal)*
 
