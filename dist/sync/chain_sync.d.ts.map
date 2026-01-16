@@ -1,0 +1,1 @@
+{"version":3,"file":"chain_sync.d.ts","sourceRoot":"","sources":["../../src/sync/chain_sync.ts"],"names":[],"mappings":"AAAA,qBAAa,gBAAgB;IACrB,QAAQ,IAAI,OAAO,CAAC,UAAU,CAAC;IAO/B,eAAe,IAAI,OAAO,CAAC,UAAU,CAAC;IAItC,UAAU,CAAC,OAAO,EAAE,MAAM,GAAG,OAAO,CAAC,IAAI,CAAC;CAGjD"}

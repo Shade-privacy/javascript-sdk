@@ -7,12 +7,10 @@ import { ProofInputsAssembler } from './prover/inputs.js';
 import { ExecutionBundleBuilder } from './execution/bundle.js';
 export class ShadeSDK {
     constructor(config) {
-        // Validate config
         if (!config.walletSignature) {
             throw new Error('walletSignature is required');
         }
         this.config = config;
-        // Initialize clients
         this.poseidonClient = new PoseidonClient(config.poseidonUrl);
         this.merkleClient = new MerkleClient(config.merkleUrl);
         // Initialize core components
@@ -22,23 +20,15 @@ export class ShadeSDK {
         this.proofAssembler = new ProofInputsAssembler(this.merkleClient, this.commitmentBuilder);
         this.bundleBuilder = new ExecutionBundleBuilder();
     }
-    /**
-     * Initialize SDK (must be called first)
-     */
     async initialize() {
         console.log('🔧 Initializing Shade SDK...');
-        // Test Poseidon service
         const poseidonReady = await this.poseidonClient.testConnection();
         if (!poseidonReady) {
             throw new Error('Poseidon service not available');
         }
-        // Initialize storage
         await this.storage.initialize(this.config.walletSignature);
         console.log('✅ Shade SDK initialized');
     }
-    /**
-     * Create a new note (deposit)
-     */
     async createNote(assetId, amount) {
         console.log(`📝 Creating note: ${amount} of asset ${assetId}`);
         const note = await this.noteEngine.createNote(assetId, amount);
@@ -50,15 +40,9 @@ export class ShadeSDK {
             bucketAmount: note.metadata.bucketAmount
         };
     }
-    /**
-     * Get unspent notes (optionally filtered by asset)
-     */
     async getUnspentNotes(assetId) {
         return this.storage.getUnspentNotes(assetId);
     }
-    /**
-     * Prepare proof for spending a note
-     */
     async prepareSpendProof(commitment, options = {}) {
         console.log(`🔍 Preparing spend proof for: ${commitment}`);
         // Load note
@@ -85,16 +69,10 @@ export class ShadeSDK {
     async buildExecutionBundle(proof, publicInputs, callData, constraints) {
         return this.bundleBuilder.build(proof, publicInputs, callData, constraints);
     }
-    /**
-     * Mark note as spent (call after successful execution)
-     */
     async markNoteSpent(commitment) {
         await this.storage.markAsSpent(commitment);
         console.log(`🏷️ Note marked as spent: ${commitment}`);
     }
-    /**
-     * Get SDK version and status
-     */
     getStatus() {
         return {
             version: '1.0.0',

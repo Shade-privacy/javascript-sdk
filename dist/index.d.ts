@@ -19,25 +19,13 @@ export declare class ShadeSDK {
     private proofAssembler;
     private bundleBuilder;
     constructor(config: SDKConfig);
-    /**
-     * Initialize SDK (must be called first)
-     */
     initialize(): Promise<void>;
-    /**
-     * Create a new note (deposit)
-     */
     createNote(assetId: AssetId, amount: bigint): Promise<{
         note: Note;
         commitment: bigint;
         bucketAmount: bigint;
     }>;
-    /**
-     * Get unspent notes (optionally filtered by asset)
-     */
     getUnspentNotes(assetId?: AssetId): Promise<Note[]>;
-    /**
-     * Prepare proof for spending a note
-     */
     prepareSpendProof(commitment: string, options?: {
         relayerFee?: bigint;
         protocolFee?: bigint;
@@ -50,13 +38,7 @@ export declare class ShadeSDK {
      * Build execution bundle
      */
     buildExecutionBundle(proof: any, publicInputs: PublicInputs, callData: string, constraints: ExecutionConstraints): Promise<ExecutionBundle>;
-    /**
-     * Mark note as spent (call after successful execution)
-     */
     markNoteSpent(commitment: string): Promise<void>;
-    /**
-     * Get SDK version and status
-     */
     getStatus(): {
         version: string;
         initialized: boolean;

@@ -3,11 +3,7 @@ import axios from 'axios';
 export class PoseidonClient {
   private serviceUrl: string;
   
-  constructor(serviceUrl?: string) {
-    // Remove the hardcoded default and require explicit URL
-    if (!serviceUrl) {
-      throw new Error('serviceUrl is required. Please provide the URL of your Poseidon service.');
-    }
+  constructor(serviceUrl: string = 'http://localhost:3001') {
     this.serviceUrl = serviceUrl;
   }
   
