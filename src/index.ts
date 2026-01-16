@@ -32,7 +32,6 @@ export class ShadeSDK {
     
     this.config = config;
     
-    // Initialize clients
     this.poseidonClient = new PoseidonClient(config.poseidonUrl);
     this.merkleClient = new MerkleClient(config.merkleUrl);
     
@@ -44,27 +43,20 @@ export class ShadeSDK {
     this.bundleBuilder = new ExecutionBundleBuilder();
   }
   
-  /**
-    Initialize SDK (must be called first)
-   */
+  
   async initialize(): Promise<void> {
     console.log('🔧 Initializing Shade SDK...');
     
-    // Test Poseidon service
     const poseidonReady = await this.poseidonClient.testConnection();
     if (!poseidonReady) {
       throw new Error('Poseidon service not available');
     }
     
-    // Initialize storage
     await this.storage.initialize(this.config.walletSignature);
     
     console.log('✅ Shade SDK initialized');
   }
   
-  /**
-   * Create a new note (deposit)
-   */
   async createNote(assetId: AssetId, amount: bigint): Promise<{
     note: Note;
     commitment: bigint;
@@ -84,16 +76,11 @@ export class ShadeSDK {
     };
   }
   
-  /**
-   * Get unspent notes (optionally filtered by asset)
-   */
   async getUnspentNotes(assetId?: AssetId): Promise<Note[]> {
     return this.storage.getUnspentNotes(assetId);
   }
   
-  /**
-   * Prepare proof for spending a note
-   */
+
   async prepareSpendProof(
     commitment: string,
     options: {
@@ -143,17 +130,13 @@ export class ShadeSDK {
     return this.bundleBuilder.build(proof, publicInputs, callData, constraints);
   }
   
-  /**
-   * Mark note as spent (call after successful execution)
-   */
+
   async markNoteSpent(commitment: string): Promise<void> {
     await this.storage.markAsSpent(commitment);
     console.log(`🏷️ Note marked as spent: ${commitment}`);
   }
   
-  /**
-   * Get SDK version and status
-   */
+
   getStatus() {
     return {
       version: '1.0.0',
