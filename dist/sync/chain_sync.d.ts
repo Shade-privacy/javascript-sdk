@@ -1,6 +1,8 @@
-export declare class ChainSyncManager {
+import { SyncResult } from '../types/health';
+export declare class ChainSync {
     fullSync(): Promise<SyncResult>;
     incrementalSync(): Promise<SyncResult>;
-    syncWallet(address: string): Promise<void>;
+    private syncToLatest;
+    private syncFromLastCheckpoint;
 }
 //# sourceMappingURL=chain_sync.d.ts.map
