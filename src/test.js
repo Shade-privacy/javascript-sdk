@@ -9,7 +9,6 @@ async function quickTest() {
     // 1. Create SDK
     const sdk = new ShadeSDK({
       walletSignature: 'test-' + Date.now(),
-      poseidonUrl: 'http://localhost:3001',
       merkleUrl: 'http://localhost:3002'
     });
     

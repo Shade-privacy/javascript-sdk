@@ -1,122 +1,121 @@
-import { buildPoseidon } from 'circomlibjs';
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 export class PoseidonClient {
-  private poseidon: any = null;
-  
+  private poseidon: ((inputs: bigint[]) => bigint) | null = null;
+
   constructor(serviceUrl?: string) {
-    // Accept URL but ignore it (just log it for debugging)
     if (serviceUrl) {
-      console.log(`🔧 Note: Using local Poseidon computation (ignoring provided URL: ${serviceUrl})`);
+      console.log(`🔧 Using local Poseidon (ignoring URL: ${serviceUrl})`);
     }
     this.initializePoseidon();
   }
-  
-  /**
-   * Initialize Poseidon hash function
-   */
-  private async initializePoseidon(): Promise<void> {
-    if (!this.poseidon) {
-      try {
-        this.poseidon = await buildPoseidon();
-        console.log("✅ Poseidon hash function loaded locally");
-      } catch (error) {
-        console.error("❌ Failed to load Poseidon:", error);
-        throw new Error('Failed to initialize Poseidon hash function');
+
+  // ─────────────────────────────────────────────
+  // Initialization
+  // ─────────────────────────────────────────────
+
+  private initializePoseidon(): void {
+    if (this.poseidon) return;
+
+    try {
+      const circomlibjs = require("circomlibjs");
+
+      /**
+       * Your installed circomlibjs exports poseidon directly:
+       *   circomlibjs.poseidon(inputs) -> bigint
+       */
+      if (typeof circomlibjs.poseidon !== "function") {
+        throw new Error("poseidon function not found on circomlibjs");
       }
+
+      this.poseidon = circomlibjs.poseidon;
+      console.log("✅ Poseidon loaded (direct export)");
+    } catch (err: any) {
+      console.error("❌ Failed to load Poseidon:", err);
+      throw new Error("Failed to initialize Poseidon hash function");
     }
   }
-  
-  /**
-   * Wait for Poseidon to be initialized
-   */
+
   private async ensureInitialized(): Promise<void> {
     if (!this.poseidon) {
-      await this.initializePoseidon();
+      this.initializePoseidon();
     }
   }
-  
-  /**
-   * Convert any input to BigInt
-   */
-  private parseInput(input: bigint | string | number): bigint {
-    if (typeof input === 'bigint') {
+
+  // ─────────────────────────────────────────────
+  // Input parsing (matches your Express logic)
+  // ─────────────────────────────────────────────
+
+  private parseInput(input: any): bigint {
+    if (typeof input === "bigint") {
       return input;
     }
-    
-    if (typeof input === 'string') {
-      const cleanInput = input.trim();
-      
-      if (cleanInput.startsWith('0x')) {
-        // Handle hex strings (0x...)
-        return BigInt(cleanInput);
-      } else if (cleanInput.includes('.')) {
-        // Handle decimal numbers with decimal points
-        throw new Error(`Floating point numbers not supported: ${cleanInput}`);
-      } else {
-        // Handle decimal strings
-        return BigInt(cleanInput);
-      }
+
+    if (typeof input === "number") {
+      return BigInt(Math.floor(input));
     }
-    
-    if (typeof input === 'number') {
-      // Handle JavaScript numbers
-      if (!Number.isInteger(input)) {
-        throw new Error(`Floating point numbers not supported: ${input}`);
+
+    if (typeof input === "string") {
+      const clean = input.trim();
+
+      if (clean.startsWith("0x")) {
+        return BigInt(clean);
       }
-      return BigInt(input);
+
+      if (!/^-?\d+$/.test(clean)) {
+        throw new Error(`Invalid decimal string: ${clean}`);
+      }
+
+      return BigInt(clean);
     }
-    
-    throw new Error(`Unsupported input type: ${typeof input}, value: ${input}`);
+
+    throw new Error(
+      `Unsupported input type: ${typeof input}, value: ${JSON.stringify(input)}`
+    );
   }
-  
-  /**
-   * Compute Poseidon hash of inputs locally
-   */
+
+  // ─────────────────────────────────────────────
+  // Poseidon hash (FIXED)
+  // ─────────────────────────────────────────────
+
+  private poseidonHash(inputs: any[]): string {
+    if (!this.poseidon) {
+      throw new Error("Poseidon not initialized");
+    }
+
+    const bigIntInputs = inputs.map((i) => this.parseInput(i));
+
+    /**
+     * Direct-export Poseidon returns a bigint
+     * NOT a field element object
+     */
+    const result: bigint = this.poseidon(bigIntInputs);
+
+    return result.toString();
+  }
+
+  // ─────────────────────────────────────────────
+  // Public API
+  // ─────────────────────────────────────────────
+
   async hash(inputs: (bigint | string | number)[]): Promise<bigint> {
-    try {
-      await this.ensureInitialized();
-      
-      // Convert all inputs to BigInt first
-      const bigIntInputs = inputs.map(input => this.parseInput(input));
-      
-      console.debug(`🔢 Poseidon inputs: ${bigIntInputs.map(b => b.toString()).join(', ')}`);
-      
-      // Compute hash locally
-      const hashResult = this.poseidon(bigIntInputs);
-      
-      // Convert to BigInt (poseidon.F.toString gives decimal string)
-      const result = BigInt(this.poseidon.F.toString(hashResult));
-      
-      console.debug(`🎯 Poseidon result: ${result}`);
-      
-      return result;
-    } catch (error: any) {
-      throw new Error(`Poseidon hash computation failed: ${error.message}`);
+    await this.ensureInitialized();
+
+    if (!Array.isArray(inputs)) {
+      throw new Error("inputs must be an array");
     }
+
+    return BigInt(this.poseidonHash(inputs));
   }
-  
-  /**
-   * Test if Poseidon is ready (always true for local version)
-   */
+
   async testConnection(): Promise<boolean> {
     try {
       await this.ensureInitialized();
-      return true;
+      return this.poseidon !== null;
     } catch {
       return false;
     }
-  }
-  
-  /**
-   * Alternative: Direct hash without async/await
-   */
-  hashSync(inputs: (bigint | string | number)[]): bigint {
-    if (!this.poseidon) {
-      throw new Error('Poseidon not initialized. Call await client.testConnection() first.');
-    }
-    
-    const bigIntInputs = inputs.map(input => this.parseInput(input));
-    const hashResult = this.poseidon(bigIntInputs);
-    return BigInt(this.poseidon.F.toString(hashResult));
   }
 }
