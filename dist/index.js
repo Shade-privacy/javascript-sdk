@@ -91,7 +91,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         try {
             const sdk = new ShadeSDK({
                 walletSignature: 'demo-' + Date.now(),
-                poseidonUrl: 'http://localhost:3001',
+                poseidonUrl: 'http://localhost:301',
                 merkleUrl: 'http://localhost:3002'
             });
             console.log('✅ SDK instance created');
